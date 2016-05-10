@@ -10,14 +10,14 @@ WORKDIR /tmp
 #                   data directory. This cannot be populated before Marathon
 #                   has a chance to create the host-container volume mapping.
 #
-ENV JENKINS_WAR_URL https://updates.jenkins-ci.org/download/war/1.642.2/jenkins.war
+ENV JENKINS_WAR_URL https://updates.jenkins-ci.org/download/war/1.658/jenkins.war
 ENV JENKINS_STAGING /var/jenkins_staging
 ENV JENKINS_HOME /var/jenkins_home
 ENV JENKINS_FOLDER /usr/share/jenkins/
-ENV JAVA_HOME "/usr/lib/jvm/java-7-openjdk-amd64"
+ENV JAVA_HOME "/usr/lib/jvm/java-8-oracle"
 
 RUN apt-get update
-RUN apt-get install -y git python zip curl default-jre jq
+RUN apt-get install -y git python zip curl default-jre jq apt-transport-https ca-certificates python3-pip
 
 RUN mkdir -p /var/log/nginx/jenkins
 COPY conf/nginx/nginx.conf /etc/nginx/nginx.conf
@@ -34,6 +34,23 @@ COPY conf/jenkins/jenkins.model.JenkinsLocationConfiguration.xml "${JENKINS_STAG
 COPY conf/jenkins/nodeMonitors.xml "${JENKINS_STAGING}/nodeMonitors.xml"
 
 RUN /usr/local/jenkins/bin/plugin_install.sh "${JENKINS_STAGING}/plugins"
+
+# Java 8 & Docker repositories
+RUN echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu xenial main" | tee /etc/apt/sources.list.d/webupd8team-java.list ; \
+    echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu xenial main" | tee -a /etc/apt/sources.list.d/webupd8team-java.list ; \
+    apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys EEA14886 ; \
+    echo 'oracle-java8-installer shared/accepted-oracle-license-v1-1 select true' | /usr/bin/debconf-set-selections
+
+RUN apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D && \
+    echo 'deb https://apt.dockerproject.org/repo ubuntu-trusty main' > /etc/apt/sources.list.d/docker.list
+
+RUN apt-get update
+
+# Mount the Docker socket from the host!
+RUN apt-get install -y docker-engine=1.9.0-0~trusty oracle-java8-installer
+
+RUN curl -o /tmp/nodeinstaller https://deb.nodesource.com/setup_4.x && bash /tmp/nodeinstaller && \
+    apt-get install -y nodejs
 
 # Override the default property for DNS lookup caching
 RUN echo 'networkaddress.cache.ttl=60' >> ${JAVA_HOME}/jre/lib/security/java.security
